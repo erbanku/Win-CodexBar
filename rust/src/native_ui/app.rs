@@ -883,6 +883,12 @@ fn create_provider(id: ProviderId) -> Box<dyn Provider> {
 
 impl eframe::App for CodexBarApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Intercept window close: hide to tray instead of exiting
+        if ctx.input(|i| i.viewport().close_requested()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
+
         if self.pending_main_window_layout {
             self.layout_main_window(ctx, self.anchor_main_window_to_pointer);
         }

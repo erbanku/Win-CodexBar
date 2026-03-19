@@ -183,10 +183,7 @@ pub fn detect_version() -> Option<String> {
         .get_or_init(|| {
             let cli_path = find_kiro_cli()?;
 
-            let output = Command::new(&cli_path)
-                .arg("--version")
-                .output()
-                .ok()?;
+            let output = Command::new(&cli_path).arg("--version").output().ok()?;
 
             if !output.status.success() {
                 return None;

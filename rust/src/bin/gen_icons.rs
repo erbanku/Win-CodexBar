@@ -1,6 +1,5 @@
 /// Generate icon files for Tauri
 /// This creates a simple icon.ico file for Windows
-
 use std::fs::File;
 use std::io::Write;
 
@@ -59,16 +58,17 @@ fn create_ico(path: &str) {
 
     // BMP info header (BITMAPINFOHEADER)
     file.write_all(&bmp_header_size.to_le_bytes()).unwrap(); // biSize
-    file.write_all(&(size as i32).to_le_bytes()).unwrap();   // biWidth
+    file.write_all(&(size as i32).to_le_bytes()).unwrap(); // biWidth
     file.write_all(&((size * 2) as i32).to_le_bytes()).unwrap(); // biHeight (doubled for ICO)
-    file.write_all(&1u16.to_le_bytes()).unwrap();            // biPlanes
-    file.write_all(&32u16.to_le_bytes()).unwrap();           // biBitCount
-    file.write_all(&0u32.to_le_bytes()).unwrap();            // biCompression
-    file.write_all(&(pixel_data_size + mask_size).to_le_bytes()).unwrap(); // biSizeImage
-    file.write_all(&0i32.to_le_bytes()).unwrap();            // biXPelsPerMeter
-    file.write_all(&0i32.to_le_bytes()).unwrap();            // biYPelsPerMeter
-    file.write_all(&0u32.to_le_bytes()).unwrap();            // biClrUsed
-    file.write_all(&0u32.to_le_bytes()).unwrap();            // biClrImportant
+    file.write_all(&1u16.to_le_bytes()).unwrap(); // biPlanes
+    file.write_all(&32u16.to_le_bytes()).unwrap(); // biBitCount
+    file.write_all(&0u32.to_le_bytes()).unwrap(); // biCompression
+    file.write_all(&(pixel_data_size + mask_size).to_le_bytes())
+        .unwrap(); // biSizeImage
+    file.write_all(&0i32.to_le_bytes()).unwrap(); // biXPelsPerMeter
+    file.write_all(&0i32.to_le_bytes()).unwrap(); // biYPelsPerMeter
+    file.write_all(&0u32.to_le_bytes()).unwrap(); // biClrUsed
+    file.write_all(&0u32.to_le_bytes()).unwrap(); // biClrImportant
 
     // Pixel data (BGRA, bottom-up)
     for y in (0..size).rev() {

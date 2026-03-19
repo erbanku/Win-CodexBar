@@ -14,6 +14,78 @@ use std::path::PathBuf;
 
 use crate::core::ProviderId;
 
+/// Theme mode for UI appearance
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeMode {
+    /// Follow system setting (Windows dark/light mode)
+    #[default]
+    System,
+    /// Always use dark theme
+    Dark,
+    /// Always use light theme
+    Light,
+}
+
+impl ThemeMode {
+    /// Get the display name for this mode
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            ThemeMode::System => "System",
+            ThemeMode::Dark => "Dark",
+            ThemeMode::Light => "Light",
+        }
+    }
+
+    /// Get a description for this mode
+    pub fn description(&self) -> &'static str {
+        match self {
+            ThemeMode::System => "Follow your Windows appearance setting",
+            ThemeMode::Dark => "Always use dark theme",
+            ThemeMode::Light => "Always use light theme",
+        }
+    }
+
+    /// Get all available theme modes
+    pub fn all() -> &'static [ThemeMode] {
+        &[ThemeMode::System, ThemeMode::Dark, ThemeMode::Light]
+    }
+
+    /// Resolve to concrete dark/light based on system preference
+    pub fn is_dark(&self) -> bool {
+        match self {
+            ThemeMode::Dark => true,
+            ThemeMode::Light => false,
+            ThemeMode::System => Self::system_is_dark(),
+        }
+    }
+
+    /// Detect whether the Windows system theme is dark
+    fn system_is_dark() -> bool {
+        #[cfg(target_os = "windows")]
+        {
+            use winreg::enums::*;
+            use winreg::RegKey;
+
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+            if let Ok(key) =
+                hkcu.open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+            {
+                // AppsUseLightTheme: 0 = dark, 1 = light
+                if let Ok(val) = key.get_value::<u32, _>("AppsUseLightTheme") {
+                    return val == 0;
+                }
+            }
+            true // Default to dark if registry read fails
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            true // Default to dark on non-Windows
+        }
+    }
+}
+
 /// Update channel for receiving updates
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -128,6 +200,10 @@ pub struct Settings {
     /// Enabled provider IDs (by CLI name)
     pub enabled_providers: HashSet<String>,
 
+    /// Theme mode: Dark, Light, or System (follow OS setting)
+    #[serde(default)]
+    pub theme_mode: ThemeMode,
+
     /// Refresh interval in seconds (0 = manual only)
     pub refresh_interval_secs: u64,
 
@@ -225,7 +301,8 @@ impl Default for Settings {
 
         Self {
             enabled_providers: enabled,
-            refresh_interval_secs: 300, // 5 minutes
+            theme_mode: ThemeMode::default(), // Follow system theme by default
+            refresh_interval_secs: 300,       // 5 minutes
             start_minimized: false,
             start_at_login: false,
             show_notifications: true,
@@ -412,7 +489,8 @@ impl Settings {
 
     /// Set the metric preference for a provider
     pub fn set_provider_metric(&mut self, id: ProviderId, metric: MetricPreference) {
-        self.provider_metrics.insert(id.cli_name().to_string(), metric);
+        self.provider_metrics
+            .insert(id.cli_name().to_string(), metric);
     }
 
     /// Maximum number of providers shown in the Overview tab
@@ -426,14 +504,19 @@ impl Settings {
             return Vec::new();
         }
 
-        let mut resolved: Vec<ProviderId> = self.overview_providers.iter()
+        let mut resolved: Vec<ProviderId> = self
+            .overview_providers
+            .iter()
             .filter_map(|name| ProviderId::from_cli_name(name))
             .filter(|id| enabled.contains(id))
             .take(Self::MAX_OVERVIEW_PROVIDERS)
             .collect();
 
         if resolved.is_empty() {
-            resolved = enabled.into_iter().take(Self::MAX_OVERVIEW_PROVIDERS).collect();
+            resolved = enabled
+                .into_iter()
+                .take(Self::MAX_OVERVIEW_PROVIDERS)
+                .collect();
         }
 
         resolved
@@ -473,12 +556,30 @@ pub struct RefreshIntervalOption {
 /// Get available refresh interval options
 pub fn get_refresh_interval_options() -> Vec<RefreshIntervalOption> {
     vec![
-        RefreshIntervalOption { value: 60, label: "1 minute".to_string() },
-        RefreshIntervalOption { value: 120, label: "2 minutes".to_string() },
-        RefreshIntervalOption { value: 300, label: "5 minutes".to_string() },
-        RefreshIntervalOption { value: 600, label: "10 minutes".to_string() },
-        RefreshIntervalOption { value: 900, label: "15 minutes".to_string() },
-        RefreshIntervalOption { value: 1800, label: "30 minutes".to_string() },
+        RefreshIntervalOption {
+            value: 60,
+            label: "1 minute".to_string(),
+        },
+        RefreshIntervalOption {
+            value: 120,
+            label: "2 minutes".to_string(),
+        },
+        RefreshIntervalOption {
+            value: 300,
+            label: "5 minutes".to_string(),
+        },
+        RefreshIntervalOption {
+            value: 600,
+            label: "10 minutes".to_string(),
+        },
+        RefreshIntervalOption {
+            value: 900,
+            label: "15 minutes".to_string(),
+        },
+        RefreshIntervalOption {
+            value: 1800,
+            label: "30 minutes".to_string(),
+        },
     ]
 }
 
@@ -533,7 +634,9 @@ impl ManualCookies {
 
     /// Get cookie for a provider
     pub fn get(&self, provider_id: &str) -> Option<&str> {
-        self.cookies.get(provider_id).map(|e| e.cookie_header.as_str())
+        self.cookies
+            .get(provider_id)
+            .map(|e| e.cookie_header.as_str())
     }
 
     /// Set cookie for a provider
@@ -657,7 +760,10 @@ impl ApiKeys {
 
     /// Check if a provider has an API key configured
     pub fn has_key(&self, provider_id: &str) -> bool {
-        self.keys.get(provider_id).map(|e| !e.api_key.is_empty()).unwrap_or(false)
+        self.keys
+            .get(provider_id)
+            .map(|e| !e.api_key.is_empty())
+            .unwrap_or(false)
     }
 
     /// Get all saved API keys for UI display (with masked values)
@@ -873,5 +979,56 @@ mod tests {
         // Remove it
         cookies.remove("claude");
         assert_eq!(cookies.get("claude"), None);
+    }
+
+    #[test]
+    fn test_theme_mode_default() {
+        let settings = Settings::default();
+        assert_eq!(settings.theme_mode, ThemeMode::System);
+    }
+
+    #[test]
+    fn test_theme_mode_display_names() {
+        assert_eq!(ThemeMode::System.display_name(), "System");
+        assert_eq!(ThemeMode::Dark.display_name(), "Dark");
+        assert_eq!(ThemeMode::Light.display_name(), "Light");
+    }
+
+    #[test]
+    fn test_theme_mode_is_dark() {
+        assert!(ThemeMode::Dark.is_dark());
+        assert!(!ThemeMode::Light.is_dark());
+        // System depends on OS, but we can verify it returns a bool
+        let _ = ThemeMode::System.is_dark();
+    }
+
+    #[test]
+    fn test_theme_mode_all() {
+        let all = ThemeMode::all();
+        assert_eq!(all.len(), 3);
+        assert!(all.contains(&ThemeMode::System));
+        assert!(all.contains(&ThemeMode::Dark));
+        assert!(all.contains(&ThemeMode::Light));
+    }
+
+    #[test]
+    fn test_theme_mode_serialization() {
+        let settings = Settings {
+            theme_mode: ThemeMode::Light,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains("\"theme_mode\":\"light\""));
+
+        let deserialized: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.theme_mode, ThemeMode::Light);
+    }
+
+    #[test]
+    fn test_theme_mode_deserialization_missing_field() {
+        // When theme_mode is missing from JSON, it should default to System
+        let json = r#"{"enabled_providers":["claude"]}"#;
+        let settings: Settings = serde_json::from_str(json).unwrap();
+        assert_eq!(settings.theme_mode, ThemeMode::System);
     }
 }
